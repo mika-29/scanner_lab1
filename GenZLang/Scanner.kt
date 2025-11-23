@@ -18,6 +18,11 @@ class Scanner(private val source: String) {
     }
 
     private fun scanToken() {
+        skipNoise()
+        if(reachedEnd()) return
+
+        if(tryPhraseStart()) return
+
         val currentChar = nextChar()
         when (currentChar) {
             '(' -> addToken(TokenType.LPAR)
@@ -26,23 +31,29 @@ class Scanner(private val source: String) {
             '}' -> addToken(TokenType.RBRACE)
             ',' -> addToken(TokenType.COMMA)
             '.' -> addToken(TokenType.DOT)
-            ';' -> addToken(TokenType.SEMICOLON)
-            '*' -> addToken(TokenType.STAR)
+            ':' -> addToken(TokenType.COLON)
+            '*' -> addToken(TokenType.MULTIPLY)
             '%' -> addToken(TokenType.MODULO)
             '^' -> addToken(TokenType.EXPONENT)
             '&' -> addToken( type = TokenType.AND)
             '|' -> addToken( type = TokenType.OR)
+            '/' -> addToken(TokenType.DIVIDE)
 
             //Multi-character operators
             '+' -> addToken(type = if (match(expected = '+')) TokenType.INC else TokenType.ADD)
             '-' -> addToken(type = if (match(expected = '-')) TokenType.DEC else TokenType.MINUS)
             '!' -> addToken(if (match('=')) TokenType.NOT_EQUAL else TokenType.NOT)
-            '=' -> addToken(if (match('=')) TokenType.EQUAL_EQUAL else TokenType.ASSIGN)
             '>' -> addToken(if (match('=')) TokenType.G_EQUAL else TokenType.GREATER)
             '<' -> addToken(if (match('=')) TokenType.L_EQUAL else TokenType.LESS)
-            '/' -> addToken(TokenType.SLASH)
+            '=' -> addToken(type = if (match('=')) TokenType.EQUAL_EQUAL else TokenType.EQUAL)
 
-            ' ','\r','\t' -> {}
+            '@', '$', '%' -> captureDatatypePrefix(currentChar)
+
+            '"' -> {
+                start = current - 1   // ensure lexeme begins at opening quote
+                readString()
+            }
+            '\'' -> readChar()
 
             else -> {
                 when{
@@ -50,14 +61,114 @@ class Scanner(private val source: String) {
                         current += "FYI.".length-1
                         scanComment()
                     }
-                    currentChar.isLetter() -> readIdentifier()
                     currentChar.isDigit() -> readNumber()
-                    currentChar == '"' -> readString()
-                    currentChar == '\'' -> readChar()
+                    currentChar.isLetter() -> readIdentifier()
                     else -> println("[line $line] Unexpected character: '$currentChar'")
                 }
             }
         }
+    }
+
+    private fun tryPhraseStart(): Boolean {
+        val remaining = source.substring(current).lowercase()
+
+        return when {
+            remaining.startsWith("repeat this") -> {
+                current += "repeat this".length
+                addToken(TokenType.START_LOOP, "repeat this")
+                true
+            }
+            remaining.startsWith("stop when") -> {
+                current += "stop when".length
+                addToken(TokenType.END_LOOP, "stop when")
+                true
+            }
+            remaining.startsWith("done if") -> {
+                current += "done if".length
+                addToken(TokenType.END_IF, "done if")
+                true
+            }
+            remaining.startsWith("create a function") -> {
+                current += "create a function".length
+                addToken(TokenType.FUNCTION, "create a function")
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun readIdentifier(){
+        // read the first word
+        val wordStart = current - 1 // because we've already advanced one char before calling here
+        // ensure we collect letters/digits/underscore for identifier-like tokens
+        while (!reachedEnd() && (peek().isLetterOrDigit() || peek() == '_')) nextChar()
+        val firstWord = source.substring(wordStart, current).lowercase()
+
+        // look ahead for a second word (skip spaces/newlines)
+        val secondWord = peekNextWord()
+
+        // check combined two-word key first (e.g., "stop when", "done if")
+        val combined = if (secondWord.isNotEmpty()) "$firstWord $secondWord" else firstWord
+
+        if (secondWord.isNotEmpty() && keywords.containsKey(combined)) {
+            consumeBetweenWords()
+            repeat(secondWord.length) { nextChar() }
+            addToken(keywords[combined]!!, combined) // combined may be a phrase literal if you want
+            return
+        }
+
+        // Single-word keywords (handle true/false specially so their literal is a Boolean)
+        if (keywords.containsKey(firstWord)) {
+            when (firstWord) {
+                "true"  -> addToken(TokenType.TRUE, true)
+                "false" -> addToken(TokenType.FALSE, false)
+                else    -> addToken(keywords[firstWord]!!, firstWord)
+            }
+            return
+        }
+
+        // Otherwise it's an identifier
+        val lexeme = source.substring(wordStart, current)
+        addToken(TokenType.IDENTIFIER, lexeme)
+    }
+
+    // Peek what the next contiguous letter word is without consuming
+    private fun peekNextWord(): String {
+        var idx = current
+        // skip whitespace
+        while (idx < source.length && source[idx].isWhitespace()) {
+            if (source[idx] == '\n') { /* do not increment line here; peek-only */ }
+            idx++
+        }
+        val start = idx
+        while (idx < source.length && (source[idx].isLetterOrDigit() || source[idx] == '_')) idx++
+        return if (start < idx) source.substring(start, idx).lowercase() else ""
+    }
+
+    // Consume whitespace/newline between words (advances current and updates line)
+    private fun consumeBetweenWords() {
+        var consumed = false
+        while (!reachedEnd() && source[current].isWhitespace()) {
+            consumed = true
+            if (source[current] == '\n') line++
+            current++
+        }
+        // start is left as-is; remember() will use substring(start,current) so ensure start is correct at callsite
+    }
+
+    private fun captureDatatypePrefix(prefix: Char) {
+        skipNoise() // skip spaces between sigil and variable name
+
+        val startName = current
+        while (!reachedEnd() && (peek().isLetterOrDigit() || peek() == '_')) nextChar()
+
+        if (current == startName)
+            throw RuntimeException("Variable name expected after '$prefix'")
+
+        val nameStr = source.substring(startName, current)  // clean name, no spaces
+        val fullLexeme = "$prefix$nameStr"                   // "@name"
+
+        addToken(TokenType.SIGIL_IDENT, fullLexeme)
     }
 
     private fun scanComment() {
@@ -92,20 +203,26 @@ class Scanner(private val source: String) {
 
 
     private fun readString() {
-        while (!reachedEnd() && peek() != '"'){
+        // consume until closing quote
+        while (!reachedEnd() && peek() != '"') {
             if (peek() == '\n') line++
             nextChar()
         }
 
         if (reachedEnd()) {
-            println("[line $line] Unexpected character: '$current'")
+            println("[line $line] Unterminated string.")
             return
         }
 
-        nextChar()
+        nextChar() // consume closing quote
 
+        // extract JUST the inside of the quotes
         val value = source.substring(start + 1, current - 1)
-        addToken(TokenType.STR, value)
+
+        // produce correct token with literal=string, lexeme=value (no extra quotes)
+        tokens.add(Token(TokenType.STR, value, value, line))
+
+        //println("SCANNED TOKEN -> type=STR, lexeme='$value', literal='$value' (${value.javaClass})")
     }
 
     private fun readNumber() {
@@ -125,13 +242,14 @@ class Scanner(private val source: String) {
 
     }
 
-    private fun readIdentifier() {
-        while (!reachedEnd() && (source[current].isLetterOrDigit() || source[current] == '_')) {
-            nextChar()
+    private fun skipNoise() {
+        while (!reachedEnd()) {
+            when (peek()) {
+                ' ', '\r', '\t' -> nextChar()
+                '\n' -> { line++; nextChar() }
+                else -> return
+            }
         }
-        val text = source.substring(start, current)
-        val type = keywords[text] ?: TokenType.IDENTIFIER
-        addToken(type)
     }
 
     private fun reachedEnd(): Boolean = current >= source.length
@@ -139,7 +257,10 @@ class Scanner(private val source: String) {
 
     private fun addToken(type: TokenType, literal: Any? = null) {
         val lexeme = source.substring(start, current)
-        tokens.add(Token(type, lexeme, literal, line))
+        val token = Token(type, lexeme, literal, line)
+        tokens.add(token)
+
+        //println("SCANNED TOKEN -> type=${token.type}, lexeme='${token.lexeme}', literal=${token.literal} (${token.literal?.javaClass})")
     }
 
     private fun match(expected: Char): Boolean{

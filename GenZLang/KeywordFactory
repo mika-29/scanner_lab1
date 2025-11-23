@@ -1,0 +1,27 @@
+package GenZLang
+
+object KeywordFactory {
+    fun keywords(): Map<String, TokenType> {
+        return mapOf(
+            "if" to TokenType.IF,
+            "otherwise" to TokenType.ELSE,
+            "then" to TokenType.NESTED_IF,
+            "done if" to TokenType.END_IF,
+            "repeat this" to TokenType.START_LOOP,
+            "times" to TokenType.ITERATION,
+            "until" to TokenType.CONDITION,
+            "stop when" to TokenType.END_LOOP,
+            "listen" to TokenType.INPUT,
+            "say" to TokenType.PRINT,
+            "as" to TokenType.ASSIGNMENT,
+            "is" to TokenType.EQUAL,
+            "create a function" to TokenType.FUNCTION,
+            "use" to TokenType.CALL,
+            "return" to TokenType.RETURN,
+            "done" to TokenType.END,
+            "false" to TokenType.FALSE,
+            "true" to TokenType.TRUE,
+            "null" to TokenType.NULL,
+        )
+    }
+}
