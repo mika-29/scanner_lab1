@@ -1,4 +1,4 @@
-# GenZ Language (Revising) 
+#  Language (Revising) 
 
 ## Creator
 
@@ -6,99 +6,62 @@ Michaela Borces and Marinelle Joan Tambolero
 
 ## Language Overview
 
-GenZ Language is a programming language designed to blend coding with GenZ internet slang, memes, and emojis. Its purpose is both educational and comedic: to demonstrate how syntax and semantics can be remixed into something fun and relatable while still keeping the structure of a real programming language.  
+Our programming language is designed to function like a chatbot-style program, allowing users to interact through simple commands and responses. It utilizes easy-to-understand keywords and a natural language feel, making code writing feel more like giving instructions in plain English.
+The language focuses on user input, displaying messages, loops, conditionals, and functions — the basic building blocks of most programs. It also uses special symbols to show variable types and simple syntax rules to keep things easy for beginners.
+Overall, this language is meant to help users learn programming concepts in a fun and conversational way, while also being capable of creating simple chatbot-like or interactive programs.
+
 
 Main Characteristics: 
 
-Slang Keywords - Instead of usual programming words, GenZ Lang uses slang. For example, vibe is used to declare variables, spill is for printing output,  slay is for returning output, and bet and deadass are used for if-else conditions. This makes the code look casual and more like how GenZ talks online. 
+Straight to the point - Instead of traditional programming terms like print, string, boolean, or function, [Lang Name] uses clear, everyday words that sound more natural to beginners. This makes the code feel less like technical programming and more like giving direct instructions. Commands are short, readable, and focused only on what the user wants to happen, removing unnecessary symbols or complex syntax. Because the language avoids clutter and uses plain English phrases, even first-time programmers can quickly understand what each line does without needing to memorize complicated keywords.
 
-Literal Values with Slang - The language supports numbers, strings, characters, booleans, and null values. Booleans are written as fr (true) and cap (false), while ghosted is used for null.
-
-Easy to Read ( if familiar with Slang) - Someone who understands GenZ slang will find the code easy to “read” because it feels like normal conversation, just with programming structure added. 
-
-Humor-Oriented Design - The language is intentionally humorous and informal. Its error messages and keywords are phrased in slang to reflect conversational styles rather than technical jargon. 
+Minimal Symbols - It limits the use of punctuation like "{}", ";", or complicated operators. Only a few readable symbols (like $ for variables or . for delimeters) are used to avoid confusing beginners.
 
 ## Keywords
 
-"bet" for if → used to run code only when a condition is true
+"if" → used to run code only when a condition is true
+"then" → used for nested ifs
+"otherwise" → runs if the “if” condition fails
+"done if" → ends the if statement
+"repeat this n times" → loop that repeats code with iteration
+"repeat this until n" → loop that repeats until the condition is met 
+"listen" → for user input 
+"as" → for assignment 
+"false" → represents the Boolean value false
+"true" → represents the Boolean value true
+"create a function “name” " → defines a function
+"say" → outputs/prints text or values
+"return" → exits a function and gives back a value
+"done" → ends a function 
 
-"deadass" for else → runs if the “if” condition fails
 
-"lowkey" for for → loop that repeats code with iteration
-
-"cap" for false → represents the Boolean value false
-
-"fr" for true → represents the Boolean value true
-
-"tea" for var → used to declare a variable
-
-"ghosted" for null → means no value / nothing
-
-"summon" for fun → defines a function
-
-"spill" for print → outputs text or values
-
-"slay" for return → exits a function and gives back a value
-
-"super" for super → calls a method/constructor from the superclass
-
-"dis" for this → refers to the current object
-
-"highkey" for while → loop that runs while a condition is true
-
-"squad" for class → defines a class
-
-"cancelledt" for break → exits a loop immediately
-
-"yeet" for continue → skips to the next loop iteration
-
-"pullup" for import → brings in external code or modules
-
-Operators
+## Operators
 
 Arithmetic 
 
   - Addition (+)
-  
   - Subtraction (-)
-  
   - Multiplication (*)
-  
   - Division (/) 
-  
   - Modulo (%) 
-  
   - Exponent (^) 
-  
-  - Increment (++)
-  
-  - Decrement (--) 
-  
-  - Comparison 
+  - Increment by 1 (--)
+  - Decrement by 1 (++)
+    
+Comparison 
   
   - Equal (==)
-  
   - Not Equal (!=) 
-  
   - Greater Than (>)
-  
   - Less Than (<) 
-  
   - Greater Than or Equal to (>=)
-  
   - Less Than or Equal to (<=) 
-
+  
 Logical  
   
   - AND (&)
-  
-  - OR    (|)
-  
+  - OR   (|)
   - NOT  (!) 
-
-Assignment 
-  
-  - Assign (=) 
 
 ## Literals
 
@@ -115,61 +78,73 @@ Characters
   - Single quotes (‘ ‘) wrap a single character. 
 
 Boolean Values 
-    
-  - Fr (TRUE) 
 
-  - Cap (FALSE)
+  Keywords:
+  - True
+  - False
     
-Null/None 
-    
-  - Ghosted (null/undefined) 
 
 ## Identifiers
 
 Rules for Valid Identifiers (Same for all category): 
 - Not case-sensitive
 - Should not start with numbers 
-- _  is only the symbol allowed to start an identifier 
+- Must begin with a specific symbol depending on the data type: 
+    @ - String 
+    $ - Int 
+    % - Float 
 
 ## Comments
 
 - In starting a comment the syntax should be ‘FYI.’.  
-- Nested comments are not supported. 
+- Nested comments are not supported.
+- Example: FYI. This is a comment 
 
 ## Syntax Style
 
 - White space is not significant, new lines are ignored
 - Keywords are case sensitive (must follow lower case syntax)
-- No delimiter 
+- The colon (:) is used as a block delimiter to indicate the start of a control structure, function, or conditional statement block.
+- The colon (:) is used as a block delimiter to indicate the end of each line
+- No indentation rules
 
 ## Sample Code
 
-spill "Hey bestie, it's giving Hello World vibes"
+# User Input:
 
-tea mood = "vibing"
-tea age = 21
+  listen “What’s your name?” as @name.
+  $value as 3.
+  say @name.
+  say $value. 
 
-tea vibeCheck = fr
+# Loops:
 
-bet (vibeCheck == fr) {  
-    spill "You passed the vibe check"
-} deadass {  
-    spill "No vibe detected"
-}  
+  $n as 10.
+  repeat this n times:
+  $value as $value + 3 .
+  stop when:
+  $value is 16.
 
-lowkey (tea i = 0; i < 3; i++) {  
-    spill "This is loop #" + i
-}  
+# Function creation:
 
-summon intro(tea name) {  
-    slay "Slay queen, I’m  " + name
-}  
-spill intro("Michaela")
+  create a function “greet” :
+  say "Hello!".
+  return.
+  done.
+
+  create a function “addNumbers” with parameters -> $a, $b:
+  say $a + $b.
+  return.
+  done.
+
+
+  use (functionName).
 
 ## Design Rationale
 
-  GenZ Lang was created to make coding more approachable and less intimidating, especially for younger audiences who are familiar with online slang and humor. By blending internet culture with programming concepts, the language lowers the barrier to entry while still maintaining the logical structure of traditional programming.
+  We designed our programming language to be simple, readable, and beginner-friendly, especially for users who are new to coding. Our main goal was to make programming feel more like talking to a chatbot — using natural language and intuitive commands instead of complex syntax.
+  We chose keywords such as “Listen”, “Say”, and “Repeat this n times” to make the code easy to understand, even at first glance. These commands resemble everyday language, helping users quickly grasp how input, output, loops, and conditions work.
+Overall, our design decisions focused on making the language feel conversational and logical, while still teaching the core principles of programming like flow control, variable usage, and functions in a fun and approachable way.
 
-  The use of slang-based keywords gives beginners a sense of familiarity, as the terms mirror how they already communicate online. At the same time, experienced coders can still recognize the parallels to established programming languages, making it both humorous and relatable. This dual design ensures that while the language feels casual and fun, it doesn’t lose its connection to real-world programming principles.
 
 
