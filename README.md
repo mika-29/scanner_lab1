@@ -1,8 +1,9 @@
-Chat Lang
+### Chat Lang
 
 ## Creator
 
-Michaela Borces and Marinelle Joan Tambolero
+Michaela Borces (mika-29)
+Marinelle Joan Tambolero (NellePot)
 
 ## Language Overview
 
