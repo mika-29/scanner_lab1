@@ -58,13 +58,13 @@ fun run(source: String, evaluator: Evaluator) {
     val parser = Parser(tokens)
 
     try {
-        val statements = parser.parseProgram()
+        val programNode = parser.parseProgram()
 
         // This triggers your Scoping/Assignment/Printing logic
-        evaluator.executeProgram(statements)
+        evaluator.executeProgram(programNode)
 
     } catch (e: ParseError) {
-        println("[line 1] Parse Error: ${e.message}")
+        println("[line ${e.token.line}] Parse Error: ${e.message}")
     } catch (e: RuntimeError) {
         println("[line ${e.token.line}] Runtime Error: ${e.message}")
     }

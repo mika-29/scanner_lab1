@@ -13,11 +13,14 @@ object KeywordFactory {
             "stop when" to TokenType.END_LOOP,
             "listen" to TokenType.INPUT,
             "say" to TokenType.PRINT,
+            "return" to TokenType.RETURN,
             "as" to TokenType.ASSIGNMENT,
             "is" to TokenType.EQUAL,
             "create a function" to TokenType.FUNCTION,
             "use" to TokenType.CALL,
             "return" to TokenType.RETURN,
+            "with parameters" to TokenType.WITH_PARAMS,
+            "with" to TokenType.WITH,
             "done" to TokenType.END,
             "false" to TokenType.FALSE,
             "true" to TokenType.TRUE,
@@ -25,3 +28,6 @@ object KeywordFactory {
         )
     }
 }
+
+//so i need to update scanner para magkuha din siya sa with params and also the parser
+//I need also to update parseParameterChain

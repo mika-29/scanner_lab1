@@ -1,7 +1,78 @@
 package GenZLang
 
+import java.lang.RuntimeException
+
+class GenZFunction(
+    val declaration: Stmt.Function,
+    val closure: Environment
+) : GenZCallable { // Implementing the interface
+
+    override fun arity(): Int {
+        var count = 0
+        var param = declaration.parameters
+        // Walk the linked list of parameters to count them
+        while (param != null) {
+            count++
+            param = param.next
+        }
+        return count
+    }
+
+    override fun call(interpreter: Evaluator, arguments: List<Any?>): Any? {
+        val environment = Environment(closure)
+        var param = declaration.parameters
+        var i = 0 // Index for the list of values passed in
+
+        while (param != null) {
+            // Get the parameter name from the declaration
+            val rawName = param.name.lexeme.trim()
+
+            val cleanName = if (rawName.startsWith("$") || rawName.startsWith("@") || rawName.startsWith("%")) {
+                rawName.substring(1)
+            } else {
+                rawName
+            }
+
+            environment.define(cleanName, arguments[i])
+
+            param = param.next
+            i++
+        }
+
+        try {
+            // Run the block using the interpreter's existing helper
+            val bodyBlock = declaration.body as Stmt.Block
+            interpreter.executeBlock(bodyBlock.root, environment)
+
+        } catch (returnValue: ReturnValue) {
+            return returnValue.value
+        }
+
+        return null // Return null if the function finishes without a return statement
+    }
+}
+
+class ReturnValue(val value: Any?) : RuntimeException()
+
 class Evaluator {
     var env = Environment()
+
+    init {
+        // --- NATIVE FUNCTION: clock() ---
+        env.define("clock", object : GenZCallable {
+            override fun arity(): Int = 0
+            override fun call(interpreter: Evaluator, arguments: List<Any?>): Any? {
+                return System.currentTimeMillis() / 1000.0
+            }
+        })
+        // --- NATIVE FUNCTION: name() ---
+        env.define("input", object : GenZCallable {
+            override fun arity(): Int = 0
+            override fun call(interpreter: Evaluator, arguments: List<Any?>): Any? {
+                return readlnOrNull() ?: ""
+            }
+        })
+    }
 
     private fun eval(expr: Expr): Any? {
         return when (expr) {
@@ -19,7 +90,38 @@ class Evaluator {
 
             is Expr.Unary -> evalUnary(expr)
             is Expr.Binary -> evalBinary(expr)
+            is Expr.Call -> evalCall(expr)
         }
+    }
+
+    private fun evalCall(expr: Expr.Call): Any? {
+        // 1. Get the callee name
+        val calleeNameExpr = expr.callee as? Expr.Ident
+            ?: throw RuntimeError(expr.callee.token(), "Callee must be an identifier.")
+
+        val functionName = stripSigil(calleeNameExpr.token.lexeme)
+        val callee = env.get(functionName)
+
+        // 2. Evaluate all arguments into a list
+        val arguments = mutableListOf<Any?>()
+        var argNode = expr.arguments
+        while (argNode != null) {
+            arguments.add(eval(argNode.expression))
+            argNode = argNode.next
+        }
+
+        // 3. Check if it implements the Interface (GenZFunction OR Native)
+        if (callee !is GenZCallable) {
+            throw RuntimeError(expr.callee.token(), "Function '$functionName' not found or is not callable.")
+        }
+
+        // 4. Check argument count (Arity)
+        if (arguments.size != callee.arity()) {
+            throw RuntimeError(expr.callee.token(), "Expected ${callee.arity()} arguments but got ${arguments.size}.")
+        }
+
+        // 5. Delegate execution to the object itself
+        return callee.call(this, arguments)
     }
 
     private fun evalUnary(expr: Expr.Unary): Any? {
@@ -120,9 +222,23 @@ class Evaluator {
         return true
     }
 
+    fun executeProgram(program: Stmt.Program) {
+        if (program.root != null) {
+            execute(program.root)
+        }
+    }
+
     //printing
     fun execute(stmt:Stmt){
         when (stmt) {
+            // THE NODE TRAVERSAL
+            is Stmt.Sequence -> {
+                execute(stmt.statement) // 1. Do the current thing
+                if (stmt.next != null) {
+                    execute(stmt.next!!)  // 2. Recursively do the next thing
+                }
+            }
+
             is Stmt.Print -> {
                 val value = eval(stmt.expr)
                 println(value)
@@ -138,12 +254,16 @@ class Evaluator {
             is Stmt.Assign -> {
                 val value = eval(stmt.value)
                 val name = stripSigil(stmt.name.lexeme)
-                env.assign(name, value)
+                try {
+                    env.assign(name, value)
+                } catch (e: Exception){
+                    env.define(name,value)
+                }
             }
 
             is Stmt.Block -> {
                 // Create a new inner scope, run code, then restore outer scope
-                executeBlock(stmt.statements, Environment(env))
+                executeBlock(stmt.root, Environment(env))
             }
 
             is Stmt.If -> {
@@ -153,16 +273,51 @@ class Evaluator {
                     execute(stmt.elseBranch)
                 }
             }
+
+            is Stmt.Loop -> {
+                while(!isTruthy(eval(stmt.condition))) {
+                    execute(stmt.body)
+                }
+            }
+
+            is Stmt.HybridLoop -> {
+                val countValue = eval(stmt.count)
+                if(countValue !is Double) {
+                    throw RuntimeError(stmt.count.token(), "Loop count must be a number.")
+                }
+                val count =countValue.toInt()
+
+                for(i in 0 until count) {
+                    if(stmt.stopCondition != null){
+                        val conditionResult = eval(stmt.stopCondition)
+                        if(isTruthy(conditionResult)) {
+                            break
+                        }
+                    }
+                    execute(stmt.body)
+                }
+            }
+
+            is Stmt.Function -> {
+                val function = GenZFunction(stmt, env)
+                val funName = stripSigil(stmt.name.lexeme)
+                env. define(funName, function)
+            }
+
+            is Stmt.Return -> {
+                val value = eval(stmt.value)
+                throw ReturnValue(value)
+            }
             else -> throw RuntimeException("Unimplemented statement type: ${stmt::class.simpleName}")
         }
     }
 
-    fun executeBlock(statements: List<Stmt>, environment: Environment) {
+    fun executeBlock(rootStmt: Stmt?, environment: Environment) {
         val previous = this.env // Save outer scope
         try {
             this.env = environment // Enter inner scope
-            for (stmt in statements) {
-                execute(stmt)
+            if (rootStmt != null) {
+                execute(rootStmt)
             }
         } finally {
             this.env = previous // Restore outer scope
@@ -175,12 +330,6 @@ class Evaluator {
             return clean.substring(1)
         }
         return clean
-    }
-
-    fun executeProgram(statements: List<Stmt>) {
-        for (stmt in statements) {
-            execute(stmt)
-        }
     }
 }
 

@@ -41,7 +41,7 @@ class Scanner(private val source: String) {
 
             //Multi-character operators
             '+' -> addToken(type = if (match(expected = '+')) TokenType.INC else TokenType.ADD)
-            '-' -> addToken(type = if (match(expected = '-')) TokenType.DEC else TokenType.MINUS)
+            '-' -> addToken(type = if (match(expected = '>')) TokenType.ARROW else TokenType.MINUS)
             '!' -> addToken(if (match('=')) TokenType.NOT_EQUAL else TokenType.NOT)
             '>' -> addToken(if (match('=')) TokenType.G_EQUAL else TokenType.GREATER)
             '<' -> addToken(if (match('=')) TokenType.L_EQUAL else TokenType.LESS)
@@ -93,36 +93,27 @@ class Scanner(private val source: String) {
                 addToken(TokenType.FUNCTION, "create a function")
                 true
             }
+            remaining.startsWith("with parameters") -> {
+                current += "with parameters".length
+                addToken(TokenType.WITH_PARAMS, "with parameters")
+                true
+            }
             else -> false
         }
     }
 
     private fun readIdentifier(){
-        // read the first word
-        val wordStart = current - 1 // because we've already advanced one char before calling here
-        // ensure we collect letters/digits/underscore for identifier-like tokens
+        // Read the entire contiguous word (no two-word lookahead)
+        val wordStart = current - 1
         while (!reachedEnd() && (peek().isLetterOrDigit() || peek() == '_')) nextChar()
-        val firstWord = source.substring(wordStart, current).lowercase()
+        val word = source.substring(wordStart, current).lowercase()
 
-        // look ahead for a second word (skip spaces/newlines)
-        val secondWord = peekNextWord()
-
-        // check combined two-word key first (e.g., "stop when", "done if")
-        val combined = if (secondWord.isNotEmpty()) "$firstWord $secondWord" else firstWord
-
-        if (secondWord.isNotEmpty() && keywords.containsKey(combined)) {
-            consumeBetweenWords()
-            repeat(secondWord.length) { nextChar() }
-            addToken(keywords[combined]!!, combined) // combined may be a phrase literal if you want
-            return
-        }
-
-        // Single-word keywords (handle true/false specially so their literal is a Boolean)
-        if (keywords.containsKey(firstWord)) {
-            when (firstWord) {
+        // Single-word keywords check is now clean and comprehensive
+        if (keywords.containsKey(word)) {
+            when (word) {
                 "true"  -> addToken(TokenType.TRUE, true)
                 "false" -> addToken(TokenType.FALSE, false)
-                else    -> addToken(keywords[firstWord]!!, firstWord)
+                else    -> addToken(keywords[word]!!, word)
             }
             return
         }

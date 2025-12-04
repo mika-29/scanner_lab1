@@ -21,14 +21,6 @@ class Parser(private val tokens: List<Token>) {
         throw ParseError(peek(), msg)
     }
 
-    fun parseProgram(): List<Stmt> {
-        val statements = mutableListOf<Stmt>()
-        while (!isAtEnd()){
-            statements.add(parseStatement())
-        }
-        return statements
-    }
-
     // ----------------------------
     // ENTRY POINT
     // ----------------------------
@@ -127,6 +119,7 @@ class Parser(private val tokens: List<Token>) {
             match(TokenType.NULL) -> return Expr.Ghosted
             match(TokenType.IDENTIFIER) -> return Expr.Ident(previous())
             match(TokenType.SIGIL_IDENT) -> return Expr.Ident(previous())
+            match(TokenType.CALL) -> return parseCallExpression()
             match(TokenType.LPAR) -> {
                 val expr = parseExpression()
                 consume(TokenType.RPAR, "Expect ')' after expression.")
@@ -136,33 +129,84 @@ class Parser(private val tokens: List<Token>) {
         }
     }
 
+    fun parseProgram(): Stmt.Program {
+        // Start parsing the chain until EOF
+        val root = parseChain()
+        return Stmt.Program(root)
+    }
+
+    // NEW: Recursive function to build linked nodes
+    private fun parseChain(terminator: TokenType? = null): Stmt? {
+        if (isAtEnd()) return null
+
+        // Stop if we hit the specific terminator (like 'ELSE' or 'DONE IF')
+        if (terminator != null && check(terminator)) return null
+        val currentStmt = parseStatement()
+
+        // Recursively parse the NEXT statement
+        val nextStmt = parseChain(terminator)
+        return Stmt.Sequence(currentStmt, nextStmt)
+    }
+
+    // Modified helper for If-Else that might have two terminators
+    private fun parseBlockChain(vararg terminators: TokenType): Stmt? {
+        if (isAtEnd() || terminators.any {check(it)}) return null
+
+        val currentStmt = parseStatement()
+        val nextStmt = parseBlockChain(*terminators)
+
+        return Stmt.Sequence(currentStmt, nextStmt)
+    }
+
     //parse statements
     fun parseStatement(): Stmt {
         return when {
             match(TokenType.IF) -> parseIfStatement()
             match(TokenType.PRINT) -> parsePrintStatement()
-            match(TokenType.SIGIL_IDENT) -> parseVarDeclaration()
-            check(TokenType.SIGIL_IDENT) && peekNextType() == TokenType.EQUAL -> parseAssignment()
-            else -> parseExpressionStatement()
+            match(TokenType.START_LOOP) -> parseRepeatStatement()
+            match(TokenType.FUNCTION) -> parseFunctionDefinition()
+            match(TokenType.RETURN) -> parseReturnStatement()
+
+            check(TokenType.SIGIL_IDENT) && tokens.getOrNull(current +1)?.type == TokenType.ASSIGNMENT -> {
+                    parseAssignmentOrDeclaration()
+            } else -> parseExpressionStatement()
         }
     }
+
     private fun parseIfStatement(): Stmt {
         val condition = parseExpression()
 
         consume(TokenType.COLON, "Expect ':' after then.")
 
         // IMPORTANT: We use a helper to grab all statements inside the block
-        val thenStmts = parseBlockStatements(listOf(TokenType.ELSE, TokenType.END_IF))
+        var thenRoot = parseBlockChain(TokenType.NESTED_IF,TokenType.ELSE, TokenType.END_IF)
 
-        // IMPORTANT: We wrap them in Stmt.Block.
-        // The Evaluator sees this and creates a NEW Scope (Environment).
-        val thenBranch = Stmt.Block(thenStmts)
+        if(match(TokenType.NESTED_IF)){
+            consume(TokenType.COLON, "Expect ':' after then.")
+
+            val secondRoot = parseBlockChain(TokenType.ELSE, TokenType.END_IF)
+
+            if (thenRoot == null){
+                thenRoot = secondRoot
+            } else if (secondRoot != null) {
+                var current = thenRoot
+                while(current is Stmt.Sequence && current.next != null){
+                    current = current.next!!
+                }
+                if (current is Stmt.Sequence){
+                    current.next = secondRoot
+                } else {
+                    thenRoot = Stmt.Sequence(thenRoot, secondRoot)
+                }
+            }
+        }
+        val thenBranch = Stmt.Block(thenRoot)
 
         var elseBranch: Stmt? = null
         if (match(TokenType.ELSE)) {
             consume(TokenType.COLON, "Expect ':' after otherwise.")
-            val elseStmts = parseBlockStatements(listOf(TokenType.END_IF))
-            elseBranch = Stmt.Block(elseStmts)
+            val elseRoot = parseChain(TokenType.END_IF)
+            elseBranch = Stmt.Block(elseRoot)
         }
 
         consume(TokenType.END_IF, "Expect 'done if' to close condition.")
@@ -170,13 +214,43 @@ class Parser(private val tokens: List<Token>) {
         return Stmt.If(condition, thenBranch, elseBranch)
     }
 
-    // Helper: Collects statements until it hits a keyword (Else or Done if)
-    private fun parseBlockStatements(terminators: List<TokenType>): List<Stmt> {
-        val statements = mutableListOf<Stmt>()
-        while (!isAtEnd() && terminators.none { check(it) }) {
-            statements.add(parseStatement())
+    private fun parseLoopStatement(): Stmt {
+        val bodyRoot = parseChain(TokenType.CONDITION)
+        val body = Stmt.Block(bodyRoot)
+        consume(TokenType.CONDITION, "Expect 'until' to define the loop condition.")
+        val condition = parseExpression()
+        consume(TokenType.END_LOOP, "Expect 'stop when' to close the loop.")
+        match(TokenType.DOT)
+        return Stmt.Loop(condition, body)
+    }
+
+    private fun parseRepeatStatement(): Stmt {
+        // We have already consumed 'repeat this' (START_LOOP) to get here.
+
+        if (check(TokenType.NUM) || check(TokenType.SIGIL_IDENT) || check(TokenType.IDENTIFIER)) {
+            val count = parseExpression() // Parses the "5" or "$x"
+
+            consume(TokenType.ITERATION, "Expect 'times' after loop count.")
+            match(TokenType.COLON)
+
+            return parseHybridLoop(count)
         }
-        return statements
+
+        return parseLoopStatement()
+    }
+
+    private fun parseHybridLoop(countExpr: Expr): Stmt{
+        val bodyRoot = parseChain(TokenType.END_LOOP)
+        val body = Stmt.Block(bodyRoot)
+
+        var stopCondition: Expr? = null
+
+        if(match(TokenType.END_LOOP)){
+            consume(TokenType.COLON, "Expect ':' after 'Stop when'.")
+            stopCondition = parseExpression()
+        }
+        match(TokenType.DOT)
+        return Stmt.HybridLoop(countExpr, body, stopCondition)
     }
 
     private fun parsePrintStatement(): Stmt {
@@ -191,11 +265,11 @@ class Parser(private val tokens: List<Token>) {
         return Stmt.ExprStmt(expr)
     }
 
-    private fun parseVarDeclaration(): Stmt {
-        val sigilToken = previous()
+    private fun parseAssignmentOrDeclaration(): Stmt {
+        val sigilToken = advance()
         val lexeme = sigilToken.lexeme  // "@name"
 
-        val sigilChar = lexeme[0]
+        //val sigilChar = lexeme[0]
         val nameStr = lexeme.substring(1)
 
         val nameToken = Token(
@@ -208,25 +282,77 @@ class Parser(private val tokens: List<Token>) {
         consume(TokenType.ASSIGNMENT, "Expect 'as' in variable declaration.")
         val initializer = parseExpression()
 
-        match(TokenType.DOT)
-        return Stmt.VarDecl(sigilChar, nameToken, initializer)
+        consume(TokenType.DOT, "Expect '.' after assignment or declaration.")
+        return Stmt.Assign(nameToken, initializer)
     }
 
-    private fun parseAssignment(): Stmt {
-        val name = consume(TokenType.IDENTIFIER, "Expect variable name.")
-        consume(TokenType.ASSIGNMENT, "Expect 'as' after variable name.")
-        val value = parseExpression()
-        match(TokenType.DOT)
-        return Stmt.Assign(name, value)
-    }
+    private fun parseFunctionDefinition(): Stmt.Function{
+        val nameToken = consume(TokenType.IDENTIFIER, "Expect function name (in quotes) after 'crete a function'.")
+        var parametersHead: Stmt.Param? = null
 
-    //helper
-    private fun peekNextType(): TokenType? {
-        // Check if there is a next token
-        return if (current + 1 < tokens.size) {
-            tokens[current + 1].type
-        } else {
-            null
+        if(match(TokenType.WITH_PARAMS)){
+            consume(TokenType.ARROW, "Expect '->' after parameter phrase.")
+            parametersHead = parseParameterChain()
         }
+
+        consume(TokenType.COLON, "Expect ':' before function body starts")
+
+        val bodyRoot = parseChain(TokenType.END)
+        val bodyBlock = Stmt.Block(bodyRoot)
+
+        consume(TokenType.END, "Expect 'done' to close the function body.")
+        match(TokenType.DOT)
+
+        return Stmt.Function(nameToken, parametersHead, bodyBlock)
+    }
+
+    private fun parseParameterChain(): Stmt.Param? {
+        if(check(TokenType.COLON)){
+            return null
+        }
+
+        val paramToken = consume(TokenType.SIGIL_IDENT, "Expect parameter name.")
+        var nextParam: Stmt.Param? = null
+        if(match(TokenType.COMMA)){
+            nextParam = parseParameterChain()
+        }
+        return Stmt.Param(paramToken, nextParam)
+    }
+
+    private fun parseCallExpression(): Expr{
+        val calleeName = if(check(TokenType.SIGIL_IDENT)) {
+            consume(TokenType.SIGIL_IDENT, "expect function variable.")
+        } else {
+            consume(TokenType.IDENTIFIER, "expect function name after 'use'.")
+        }
+        //change to STR, if string
+        val calleeExpr = Expr.Ident(calleeName)
+        var argumentsHead: Stmt.Argument? = null
+
+        if(match(TokenType.WITH)){
+            argumentsHead = parserArgumentChainWithKeywords()
+        }
+        //add match(tokentype.dot) if needed
+        return Expr.Call(calleeExpr, argumentsHead)
+    }
+
+    private fun parserArgumentChainWithKeywords(): Stmt.Argument? {
+        val argExpr = parseExpression()
+        var nextArg: Stmt.Argument? = null
+
+        if(match(TokenType.COMMA)){
+            nextArg = parserArgumentChainWithKeywords()
+        }
+        return Stmt.Argument(argExpr, nextArg)
+    }
+    private fun parseReturnStatement(): Stmt.Return {
+        // We already consumed the RETURN token to get here.
+        val value = if(check(TokenType.DOT)){
+            Expr.Ghosted
+        } else {
+            parseExpression()
+        }
+        consume(TokenType.DOT, "Expect '.' after return value.")
+        return Stmt.Return(value)
     }
 }

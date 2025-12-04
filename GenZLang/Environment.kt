@@ -13,7 +13,7 @@ class Environment(val enclosing: Environment? = null)  {
             return
         }
 
-        // If not found in this scope, try to update it in the outer scope
+        // If not found in this scope(inner scope), try to update it in the outer scope
         if (enclosing != null) {
             enclosing.assign(name, value)
             return
@@ -27,7 +27,7 @@ class Environment(val enclosing: Environment? = null)  {
             return values[name]
         }
 
-        // If not found here, ask the parent environment
+        // If not found here(inner scope), ask the parent environment
         if (enclosing != null) {
             return enclosing.get(name)
         }
