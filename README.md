@@ -120,11 +120,21 @@ Rules for Valid Identifiers (Same for all category):
 
 # Loops:
 
-  $n as 10.
-  repeat this n times:
-  $value as $value + 3 .
-  stop when:
-  $value is 16.
+  // Loop with condition:
+  
+  $limit as 15.
+  $i as 0.
+  repeat this:
+  $i as $i + 1.
+  stop when $i > $limit.
+
+  // Loop with limit/iteration:
+
+  $limit as 15.
+  $i as 0.
+  repeat this $limit times:
+  $i as $i + 1.
+  stop when.
 
 # Function creation:
 
